@@ -1,6 +1,6 @@
 'use strict';
 
-module.exports = tileReduce;
+module.exports = streamReduce;
 
 var EventEmitter = require('events').EventEmitter;
 var cpus = require('os').cpus().length;
@@ -9,15 +9,13 @@ var fs = require('fs');
 var fork = require('child_process').fork;
 var path = require('path');
 var binarysplit = require('binary-split');
-var cover = require('./cover');
 var streamArray = require('stream-array');
-var MBTiles = require('@mapbox/mbtiles');
 var through = require('through2');
 
 // Suppress max listener warnings. We need at least 1 listener per worker.
 process.stderr.setMaxListeners(0);
 
-function tileReduce(options) {
+function streamReduce(options) {
 
   var ee = new EventEmitter();
   var workers = ee.workers = [];
@@ -44,20 +42,13 @@ function tileReduce(options) {
     }
   }
 
-  if (options.tileStream) {
-    // Pass through a dummy pipe. This ensures the stream is in the proper mode.
-    // See last paragraph of the 'classic readable streams' section at
-    // https://github.com/substack/stream-handbook#classic-readable-streams
-    options.tileStream = options.tileStream.pipe(through.obj());
-  }
-
   log('Starting up ' + maxWorkers + ' workers... ');
 
   if (output) output.setMaxListeners(0);
   var mapOptions = options.mapOptions || {};
 
   for (var i = 0; i < maxWorkers; i++) {
-    var worker = fork(path.join(__dirname, 'worker.js'), [options.map, JSON.stringify(options.sources), JSON.stringify(mapOptions)], {silent: true});
+    var worker = fork(path.join(__dirname, 'worker.js'), [options.map, JSON.stringify(mapOptions)], {silent: true});
     worker.stdout.pipe(binarysplit('\x1e')).pipe(output);
     worker.stderr.pipe(process.stderr);
     worker.on('message', handleMessage);
@@ -75,7 +66,16 @@ function tileReduce(options) {
     ee.emit('start');
     timer = setInterval(updateStatus, 64);
 
-    var tiles = cover(options);
+    // var tiles = cover(options);
+
+    var tiles = [
+      {'geometry':1},
+      {'geometry':2},
+      {'geometry':3},
+      {'geometry':4}
+    ]
+
+    console.log(tiles)
 
     if (tiles) {
       // JS tile array, GeoJSON or bbox
@@ -83,38 +83,38 @@ function tileReduce(options) {
       tileStream = streamArray(tiles)
         .on('data', handleTile)
         .on('end', streamEnded);
-
-    } else if (options.tileStream) {
-      log('Processing tile coords from tile stream.\n');
-      tileStream = options.tileStream;
-      tileStream
-        .on('data', handleTileStreamLine)
-        .on('end', streamEnded)
-        .resume();
-    } else {
-      // try to get tiles from mbtiles (either specified by sourceCover or first encountered)
-      var source;
-      for (var i = 0; i < options.sources.length; i++) {
-        source = options.sources[i];
-        if (options.sources[i].mbtiles && (!options.sourceCover || options.sourceCover === source.name)) break;
-        source = null;
-      }
-      if (source) {
-        log('Processing tile coords from "' + source.name + '" source.\n');
-        var db = new MBTiles(source.mbtiles, function(err) {
-          if (err) throw err;
-          tileStream = db.createZXYStream()
-            .pipe(binarysplit('\n'))
-            .on('data', handleZXYLine)
-            .on('end', streamEnded);
-        });
-
-      } else {
-        throw new Error(options.sourceCover ?
-          'Specified source for cover not found.' :
-          'No area or tiles specified for the job.');
-      }
     }
+    // } else if (options.tileStream) {
+    //   log('Processing tile coords from tile stream.\n');
+    //   tileStream = options.tileStream;
+    //   tileStream
+    //     .on('data', handleTileStreamLine)
+    //     .on('end', streamEnded)
+    //     .resume();
+    // } else {
+    //   // try to get tiles from mbtiles (either specified by sourceCover or first encountered)
+    //   var source;
+    //   for (var i = 0; i < options.sources.length; i++) {
+    //     source = options.sources[i];
+    //     if (options.sources[i].mbtiles && (!options.sourceCover || options.sourceCover === source.name)) break;
+    //     source = null;
+    //   }
+    //   if (source) {
+    //     log('Processing tile coords from "' + source.name + '" source.\n');
+    //     var db = new MBTiles(source.mbtiles, function(err) {
+    //       if (err) throw err;
+    //       tileStream = db.createZXYStream()
+    //         .pipe(binarysplit('\n'))
+    //         .on('data', handleZXYLine)
+    //         .on('end', streamEnded);
+    //     });
+    //
+    //   } else {
+    //     throw new Error(options.sourceCover ?
+    //       'Specified source for cover not found.' :
+    //       'No area or tiles specified for the job.');
+    //   }
+    // }
   }
 
   var paused = false;
@@ -126,6 +126,7 @@ function tileReduce(options) {
   }
 
   function handleTile(tile) {
+    console.log(tile)
     var workerId = tilesSent++ % workers.length;
     ee.emit('map', tile, workerId);
     workers[workerId].send(tile);
@@ -135,18 +136,18 @@ function tileReduce(options) {
     }
   }
 
-  function handleTileStreamLine(line) {
-    var tile = line;
-    if (typeof line === 'string' || line instanceof Buffer) {
-      tile = line.toString().split(' ');
-    }
-    handleTile(tile.map(Number));
-  }
+  // function handleTileStreamLine(line) {
+  //   var tile = line;
+  //   if (typeof line === 'string' || line instanceof Buffer) {
+  //     tile = line.toString().split(' ');
+  //   }
+  //   handleTile(tile.map(Number));
+  // }
 
-  function handleZXYLine(line) {
-    var tile = line.toString().split('/');
-    handleTile([+tile[1], +tile[2], +tile[0]]);
-  }
+  // function handleZXYLine(line) {
+  //   var tile = line.toString().split('/');
+  //   handleTile([+tile[1], +tile[2], +tile[0]]);
+  // }
 
   function reduce(value, tile) {
     if (value !== null && value !== undefined) ee.emit('reduce', value, tile);
