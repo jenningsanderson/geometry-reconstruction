@@ -6,15 +6,40 @@ var fs           = require('fs');
 var split        = require('binary-split');
 
 var lines = 0;
+
+var status = {
+  linesProcessed                : 0,
+  noHistory                     : 0,
+  jsonParsingError              : 0,
+  noNodeLocations               : 0,
+  geometryBuilderFailedToDefine : 0,
+  totalGeometries               : 0,
+  processLineFailures           : 0,
+  topoJSONEncodingError         : 0,
+  allGeometriesByteSize               :0,
+  historyCompleteSingleObjectByteSize :0,
+  topojsonHistoryByteSize             :0
+}
+
 streamReduce({
   map: path.join(__dirname, 'geometry-reconstruction/map-geom-reconstruction.js'),
   // sources: [{name: 'osm', mbtiles: path.join(__dirname, 'tmp.mbtiles'), raw: true}],
-  maxWorkers:2,
-  lineStream: fs.createReadStream(path.join(__dirname, 'test/tampa-test.history.geometries.head')).pipe(split())
+  // maxWorkers:2,
+  lineStream: fs.createReadStream(path.join(__dirname, 'test/tampa-test.history.geometries')).pipe(split())
 })
-.on('reduce', function(num) {
-  lines += num;
+.on('reduce', function(res) {
+  if(res.lineProcessed)                 status.linesProcessed                ++
+  if(res.noHistory)                     status.noHistory                     ++
+  if(res.jsonParsingError)              status.jsonParsingError              ++
+  if(res.geometryBuilderFailedToDefine) status.geometryBuilderFailedToDefine ++
+  if(res.processLineFailures)           status.processLineFailures           ++
+  if(res.topoJSONEncodingError)         status.topoJSONEncodingError         ++
+  status.noNodeLocations                     += res.noNodeLocations;
+  status.totalGeometries                     += res.totalGeometries;
+  status.allGeometriesByteSize               += res.allGeometriesByteSize;
+  status.historyCompleteSingleObjectByteSize += res.historyCompleteSingleObjectByteSize;
+  status.topojsonHistoryByteSize             += res.topojsonHistoryByteSize;
 })
 .on('end', function() {
-  console.log("DONE", lines)
+  console.warn(JSON.stringify(status,null,2))
 });

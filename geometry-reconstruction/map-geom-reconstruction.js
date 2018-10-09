@@ -5,8 +5,31 @@ var WayGeometryBuilder  = require('./way-history-builder.js')
 var NodeGeometryBuilder = require('./node-history-builder.js')
 var RelationGeometryBuilder = require('./relation-history-builder.js')
 
+/*
+*  Helper function to reconstruct properties between major Versions from diffs
+*/
+function reconstructMajorOSMTags(baseObject,newObject){
+  if (newObject.hasOwnProperty('aA') && newObject.aA){
+    Object.keys(newObject.aA).forEach(function(key){
+      baseObject[key] = newObject.aA[key]
+    })
+  }
+  if (newObject.hasOwnProperty('aM') && newObject.aM){
+    Object.keys(newObject.aM).forEach(function(key){
+      baseObject[key] = newObject.aM[key][1]
+    })
+  }
+  if (newObject.hasOwnProperty('aD') && newObject.aD){
+    Object.keys(newObject.aD).forEach(function(key){
+      delete baseObject[key]
+    })
+  }
+  return baseObject
+}
+
 const DEBUG = true;
 
+//TODO: abstract this out to INDEX
 const CONFIG = {
   //Choose this...
   'GEOMETRY_ONLY'                             : false, //Only @validSince, @validUntil on ALL objects
@@ -25,24 +48,22 @@ const CONFIG = {
 }
 
 module.exports = function(line, writeData, done) {
-
   var status = {
-    linesProcessed                : false,
+    lineProcessed                 : false,
     noHistory                     : false,
     jsonParsingError              : false,
     noNodeLocations               : 0,
     geometryBuilderFailedToDefine : false,
-    totalGeometries               : false,
-    emptyLines                    : false,
+    totalGeometries               : 0,
     processLineFailures           : false,
     topoJSONEncodingError         : false,
     allGeometriesByteSize               :0,
     historyCompleteSingleObjectByteSize :0,
-    topojsonHistoryByteSize             :0,
-    string                        : ""
+    topojsonHistoryByteSize             :0
   }
 
   var geometryBuilder;
+  var string
 
   try{
     var object = JSON.parse(line.toString());
@@ -73,9 +94,9 @@ module.exports = function(line, writeData, done) {
         })
       }else{
         status.noNodeLocations++;
-        return false
       }
 
+      //if Geometry Builder was defined, keep going!
       if (geometryBuilder){
         /* Populates geometryBuilder.historicalGeometries object:
           historicalGeometries = {
@@ -180,7 +201,7 @@ module.exports = function(line, writeData, done) {
             if (CONFIG.WRITE_EVERY_GEOMETRY){
               string = JSON.stringify(thisVersion)
               allGeometriesByteSize += string.length;
-              console.log(string)
+              writeData(string+"\n")
             }
 
             newHistoryObject.push(thisVersion)
@@ -188,7 +209,7 @@ module.exports = function(line, writeData, done) {
           }
         })//End @history.forEach();
 
-        totalGeometries += newHistoryObject.length;
+        status.totalGeometries += newHistoryObject.length;
 
         //Fix up the history of the original object?
         object.properties['@history'] = newHistoryObject;
@@ -212,8 +233,8 @@ module.exports = function(line, writeData, done) {
 
         if(CONFIG.WRITE_HISTORY_COMPLETE_OBJECT){
           string = JSON.stringify(object)
-          historyCompleteSingleObjectByteSize += string.length;
-          console.log(string)
+          status.historyCompleteSingleObjectByteSize += string.length;
+          writeData(string+"\n")
         }
 
         //Encode TopoJSON
@@ -230,11 +251,10 @@ module.exports = function(line, writeData, done) {
             // console.log(hopeItWorked)
 
             string = JSON.stringify(object)
-            console.log(string)
+            writeData(string+"\n")
             status.topojsonHistoryByteSize += string.length;
           }catch(e){
             status.topoJSONEncodingError = true;
-            return false
           }
         }
       }else{
@@ -244,40 +264,17 @@ module.exports = function(line, writeData, done) {
       //TODO: add geometries even if there is no history?
     }else{
       //There was no history? log it and write the object back out.
-      noHistory++;
-      console.log(line)
+      status.noHistory = true;
+      writeData(line+"\n")
     }
     //If we got here, it all ran :)
     // return true;
-  }
-
-    /**
-    *  Helper function to reconstruct properties between major Versions from diffs
-    */
-    function reconstructMajorOSMTags(baseObject,newObject){
-
-    if (newObject.hasOwnProperty('aA') && newObject.aA){
-      Object.keys(newObject.aA).forEach(function(key){
-        baseObject[key] = newObject.aA[key]
-      })
-    }
-    if (newObject.hasOwnProperty('aM') && newObject.aM){
-      Object.keys(newObject.aM).forEach(function(key){
-        baseObject[key] = newObject.aM[key][1]
-      })
-    }
-    if (newObject.hasOwnProperty('aD') && newObject.aD){
-      Object.keys(newObject.aD).forEach(function(key){
-        delete baseObject[key]
-      })
-    }
-    return baseObject
-    }
-
+    status.lineProcessed = true
   }catch(err){
     status.jsonParsingError = true
     console.warn(err)
   }
+
 
   done(null, status);
 }
