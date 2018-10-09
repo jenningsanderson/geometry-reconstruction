@@ -2,10 +2,11 @@
 
 var queue = require('queue-async');
 var q = queue();
+var sources = [];
 var tilesQueue = queue(1);
 var isOldNode = process.versions.node.split('.')[0] < 4;
 
-global.mapOptions = JSON.parse(process.argv[3]);
+global.mapOptions = JSON.parse(process.argv[4]);
 var map = require(process.argv[2]);
 
 // JSON.parse(process.argv[3]).forEach(function(source) {
@@ -17,16 +18,16 @@ var map = require(process.argv[2]);
 //   sources.push(loaded);
 //
 //   /*eslint global-require: 0 */
-//   // if (source.mbtiles) require('./mbtiles')(source, done);
+//   if (source.mbtiles) require('./mbtiles')(source, done);
 //   // else if (source.url) require('./remote')(source, done);
 //   // else throw new Error('Unknown source type');
 // }
 
-// q.awaitAll(function(err, results) {
-//   if (err) throw err;
-//   for (var i = 0; i < results.length; i++) sources[i].getTile = results[i];
-//   process.send({ready: true});
-// });
+q.awaitAll(function(err, results) {
+  if (err) throw err;
+  // for (var i = 0; i < results.length; i++) sources[i].getTile = results[i];
+  process.send({ready: true});
+});
 
 function processTile(tile, callback) {
   var q = queue();
@@ -34,22 +35,21 @@ function processTile(tile, callback) {
   // for (var i = 0; i < sources.length; i++) {
   //   q.defer(sources[i].getTile, tile);
   // }
-  q.defer(tile)
 
   q.awaitAll(gotData);
 
   function gotData(err, results) {
     if (err) throw err;
 
-    var data = {};
-    for (var i = 0; i < results.length; i++) {
-      data[sources[i].name] = results[i];
-      if (!results[i]) {
-        callback();
-        process.send({reduce: true});
-        return;
-      }
-    }
+    // var data = {};
+    // for (var i = 0; i < results.length; i++) {
+    //   data[sources[i].name] = results[i];
+    //   if (!results[i]) {
+    //     callback();
+    //     process.send({reduce: true});
+    //     return;
+    //   }
+    // }
 
     var writeQueue = queue(1);
 
@@ -65,7 +65,7 @@ function processTile(tile, callback) {
       });
     }
 
-    map(data, tile, write, gotResults);
+    map(tile, write, gotResults);
   }
 }
 
