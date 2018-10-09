@@ -37,10 +37,10 @@ function streamReduce(options) {
     new vm.Script(fs.readFileSync(options.map), {filename: options.map}); // eslint-disable-line
   } catch (e) {
     if (e instanceof SyntaxError) {
-      e.message = 'tile-reduce found a syntax error in your map script: ' + options.map + '\n\n' + e.message;
+      e.message = 'Found a syntax error in your map script: ' + options.map + '\n\n' + e.message;
       throw e;
     } else if (e instanceof Error) {
-      e.message = 'tile-reduce was unable to find or require your map script: ' + options.map + '\n\n' + e.message;
+      e.message = 'Unable to find or require your map script: ' + options.map + '\n\n' + e.message;
       throw e;
     }
   }
@@ -51,7 +51,7 @@ function streamReduce(options) {
   var mapOptions = options.mapOptions || {};
 
   for (var i = 0; i < maxWorkers; i++) {
-    var worker = fork(path.join(__dirname, 'worker.js'), [options.map, JSON.stringify(options.sources), JSON.stringify(mapOptions)], {silent: true});
+    var worker = fork(path.join(__dirname, 'worker.js'), [options.map, 1, JSON.stringify(mapOptions)], {silent: true});
     worker.stdout.pipe(binarysplit('\x1e')).pipe(output);
     worker.stderr.pipe(process.stderr);
     worker.on('message', handleMessage);
@@ -175,7 +175,7 @@ function streamReduce(options) {
     var time = (h ? h + 'h ' : '') + (h || m ? m + 'm ' : '') + (s % 60) + 's';
 
     process.stderr.cursorTo(0);
-    process.stderr.write(linesDone + ' tiles processed in ' + time);
+    process.stderr.write(linesDone + ' lines processed in ' + time);
     process.stderr.clearLine(1);
   }
 
