@@ -56,6 +56,7 @@ function streamReduce(options) {
   }
 
   function handleMessage(message) {
+    console.log("handleMessage")
     if (message.reduce) reduce(message.value, message.tile);
     else if (message.ready && ++workersReady === workers.length) run();
   }
