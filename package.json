@@ -1,5 +1,5 @@
 {
-  "name": "stream-reduce",
+  "name": "json-stream-reduce",
   "version": "1.0.0",
   "description": "Based on Mapbox's tile-reduce, a framework for map-reduce jobs in Node from streaming input",
   "main": "src/index.js",
