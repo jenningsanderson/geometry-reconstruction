@@ -2,7 +2,7 @@
 
 This is a simplified framework built off Mapbox's [tile-reduce](//github.com/mapbox/tile-reduce) to perform map-reduce functions against large files of line-delimited JSON. This simply removes all of the `tile` processing and instead passes each new line in the file to the map script.
 
-This is currently used for geometry-reconstruction of historical OSM objects as output from the [OSM-Wayback](//github.com/osmlab/osm-wayback) utility
+This is currently used for geometry-reconstruction of historical OpenStreetMap objects as output from the [OSM-Wayback](//github.com/osmlab/osm-wayback) utility
 
 ### Install
 
